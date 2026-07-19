@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Telecine — Mejora tu video</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15161A; --panel:#1D1F24; --panel-2:#24262C; --line:#33353C;
+    --text:#E9E6DF; --muted:#8C8F96; --amber:#FF7A3D; --cyan:#4FD1C5; --red:#FF6B6B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; padding-bottom:30px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  header{padding:18px 16px 12px 16px; border-bottom:1px solid var(--line);}
+  header h1{font-family:'Space Grotesk',sans-serif; font-size:19px; margin:0; letter-spacing:0.3px;}
+  header h1 span{color:var(--amber);}
+  header p{margin:4px 0 0 0; font-size:11.5px; color:var(--muted);}
+
+  main{max-width:520px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:16px;}
+
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px;}
+
+  label.dropzone{
+    position:relative; display:block; aspect-ratio:9/16; max-height:60vh; margin:0 auto;
+    background:#0F1013; border:1px dashed var(--line); border-radius:8px; overflow:hidden; cursor:pointer;
+  }
+  label.dropzone.has-video{border-style:solid;}
+  .empty-state{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:var(--muted); padding:20px;}
+  .empty-state .icon{width:44px; height:44px; margin-bottom:12px; border:1.5px solid var(--muted); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:19px;}
+  .empty-state b{color:var(--text); display:block; margin-bottom:5px; font-size:14.5px;}
+  .empty-state span{font-size:12px;}
+  #glCanvas{position:absolute; inset:0; width:100%; height:100%; display:none;}
+  label.dropzone.has-video #glCanvas{display:block;}
+
+  .split-handle{
+    position:absolute; top:0; bottom:0; width:2px; background:var(--amber); left:50%;
+    display:none; touch-action:none; z-index:5;
+  }
+  label.dropzone.has-video .split-handle{display:block;}
+  .split-handle::after{
+    content:'⇔'; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:34px; height:34px; background:var(--amber); color:#1A1200; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:15px;
+  }
+  .tag{position:absolute; top:8px; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:#fff; background:rgba(0,0,0,0.5); padding:3px 8px; border-radius:5px; display:none; z-index:4;}
+  label.dropzone.has-video .tag{display:block;}
+  .tag.before{left:8px;}
+  .tag.after{right:8px;}
+
+  input[type=file]{display:none;}
+
+  #errorBox{display:none; margin-top:10px; background:#2A1516; border:1px solid #4A2226; color:var(--red); border-radius:8px; padding:10px 12px; font-size:12.5px;}
+
+  .transport{display:flex; align-items:center; gap:10px; margin-top:12px;}
+  .transport button{background:var(--panel-2); border:1px solid var(--line); color:var(--text); width:34px; height:34px; border-radius:8px; font-size:13px;}
+  .transport button:disabled{opacity:.35;}
+  input[type=range].seek{-webkit-appearance:none; appearance:none; flex:1; height:4px; background:var(--line); border-radius:2px;}
+  input[type=range].seek::-webkit-slider-thumb{-webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--amber); border:2px solid #0F1013;}
+  .time{font-size:11px; color:var(--muted); min-width:80px; text-align:right;}
+
+  h2{font-family:'Space Grotesk',sans-serif; font-size:12px; letter-spacing:1.3px; text-transform:uppercase; color:var(--muted); margin:0 0 10px 0;}
+  .chip-row{display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;}
+  .chip{padding:10px 4px; border-radius:7px; border:1px solid var(--line); background:var(--panel-2); color:var(--muted); font-size:12px; text-align:center;}
+  .chip.active{border-color:var(--amber); color:var(--amber);}
+
+  .fader{margin-top:14px;}
+  .fader-head{display:flex; justify-content:space-between; margin-bottom:6px; font-size:12.5px;}
+  .fader-head .val{color:var(--cyan);}
+  input[type=range].fader{-webkit-appearance:none; appearance:none; width:100%; height:4px; background:var(--line); border-radius:2px;}
+  input[type=range].fader::-webkit-slider-thumb{-webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--text); border:2px solid var(--cyan);}
+
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+  .btn{border-radius:8px; border:1px solid var(--line); background:var(--panel-2); color:var(--text); padding:12px 10px; font-size:13.5px; font-weight:500;}
+  .btn.primary{background:var(--amber); border-color:var(--amber); color:#1A1200; width:100%; margin-top:6px; padding:14px;}
+  .btn:disabled{opacity:.4;}
+  #downloadArea{display:none; margin-top:12px; text-align:center;}
+  #downloadArea a{
+    display:block; background:var(--cyan); color:#0B2624; text-decoration:none; font-weight:600;
+    padding:14px; border-radius:8px; font-size:14px;
+  }
+  #downloadArea p{font-size:11px; color:var(--muted); margin:8px 0 0 0;}
+  .status-line{font-size:11.5px; color:var(--muted); text-align:center; margin-top:8px;}
+
+  footer{text-align:center; color:var(--muted); font-size:10.5px; padding:6px 20px 0 20px; line-height:1.6;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TELE<span>CINE</span></h1>
+  <p>Mejora la calidad de tu video, directo desde tu teléfono.</p>
+</header>
+
+<main>
+  <div class="card">
+    <label class="dropzone" id="dropzone" for="fileInput">
+      <div class="empty-state" id="emptyState">
+        <div class="icon">▶</div>
+        <b>Toca aquí para elegir un video</b>
+        <span>Recomendado: archivos .mp4</span>
+      </div>
+      <canvas id="glCanvas"></canvas>
+      <div class="tag before">Antes</div>
+      <div class="tag after">Después</div>
+      <div class="split-handle" id="splitHandle"></div>
+    </label>
+    <input type="file" id="fileInput" accept="video/*">
+    <div id="errorBox"></div>
+
+    <div class="transport">
+      <button id="playBtn" disabled>▶</button>
+      <input type="range" class="seek" id="seek" min="0" max="1000" value="0" disabled>
+      <div class="time mono" id="timeLabel">00:00 / 00:00</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Formato</h2>
+    <div class="chip-row" id="formatSelect">
+      <div class="chip active" data-format="original">Original</div>
+      <div class="chip" data-format="9:16">TikTok/Reels</div>
+      <div class="chip" data-format="1:1">Cuadrado</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Resolución de salida</h2>
+    <div class="chip-row" id="tierSelect">
+      <div class="chip" data-tier="hd">HD</div>
+      <div class="chip active" data-tier="2k">2K</div>
+      <div class="chip" data-tier="4k">4K</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <button class="btn primary" id="exportBtn" disabled>Descargar video mejorado</button>
+    <div class="status-line" id="statusLabel">Carga un video para empezar</div>
+    <div id="downloadArea">
+      <a id="downloadLink" download="video-mejorado.webm">⬇ Guardar en tu teléfono</a>
+      <p>Si no se guarda solo, mantén presionado el botón y elige "Descargar enlace".</p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Todo el procesamiento pasa en tu propio teléfono — el video nunca se sube a internet.<br>
+  Funciona mejor en Chrome para Android.
+</footer>
+
+<video id="sourceVideo" playsinline muted style="display:none"></video>
+
+<script>
+(function(){
+  const dropzone = document.getElementById('dropzone');
+  const emptyState = document.getElementById('emptyState');
+  const fileInput = document.getElementById('fileInput');
+  const errorBox = document.getElementById('errorBox');
+  const video = document.getElementById('sourceVideo');
+  const canvas = document.getElementById('glCanvas');
+  const splitHandle = document.getElementById('splitHandle');
+  const playBtn = document.getElementById('playBtn');
+  const seek = document.getElementById('seek');
+  const timeLabel = document.getElementById('timeLabel');
+  const statusLabel = document.getElementById('statusLabel');
+  const exportBtn = document.getElementById('exportBtn');
+  const downloadArea = document.getElementById('downloadArea');
+  const downloadLink = document.getElementById('downloadLink');
+
+  const FORMATS = { original:{ratio:null}, '9:16':{ratio:9/16}, '1:1':{ratio:1} };
+  const TIERS = { hd:{p:1080,long:1920}, '2k':{p:1440,long:2560}, '4k':{p:2160,long:3840} };
+  const state = { format:'original', tier:'2k' };
+
+  // Fixed, tested enhancement values — no user sliders, so nothing here can break on export.
+  const ENHANCE = { brightness: 0.02, contrast: 1.10, sharpen: 0.5 };
+
+  // ---------- WebGL setup ----------
+  let gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  let glReady = false, program, uniforms = {}, texture, quadBuffer;
+
+  const VERT_SRC = `
+    attribute vec2 aPos;
+    varying vec2 vUv;
+    void main(){
+      vUv = (aPos + 1.0) * 0.5;
+      gl_Position = vec4(aPos, 0.0, 1.0);
+    }
+  `;
+  const FRAG_SRC = `
+    precision mediump float;
+    varying vec2 vUv;
+    uniform sampler2D uTex;
+    uniform vec2 uTexel;
+    uniform vec2 uCropOffset;
+    uniform vec2 uCropScale;
+    uniform float uBrightness;
+    uniform float uContrast;
+    uniform float uSharpen;
+    uniform float uSplit;
+    uniform float uForceEnhanced;
+
+    vec3 sampleVideo(vec2 uv){
+      return texture2D(uTex, uCropOffset + uv * uCropScale).rgb;
+    }
+
+    void main(){
+      vec2 uv = vUv;
+      vec3 original = sampleVideo(uv);
+
+      if(uForceEnhanced < 0.5 && uv.x < uSplit){
+        gl_FragColor = vec4(original, 1.0);
+        return;
+      }
+
+      vec3 center = original;
+      vec3 sum =
+        sampleVideo(uv + vec2(-1.0, 0.0)*uTexel) +
+        sampleVideo(uv + vec2( 1.0, 0.0)*uTexel) +
+        sampleVideo(uv + vec2( 0.0,-1.0)*uTexel) +
+        sampleVideo(uv + vec2( 0.0, 1.0)*uTexel);
+      vec3 col = center + uSharpen * (center * 4.0 - sum);
+
+      col = (col - 0.5) * uContrast + 0.5 + uBrightness;
+      col = clamp(col, 0.0, 1.0);
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+
+  function compile(src, type){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+      console.error(gl.getShaderInfoLog(sh));
+      return null;
+    }
+    return sh;
+  }
+
+  function initGL(){
+    if(!gl) return false;
+    const vs = compile(VERT_SRC, gl.VERTEX_SHADER);
+    const fs = compile(FRAG_SRC, gl.FRAGMENT_SHADER);
+    if(!vs || !fs) return false;
+    program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    if(!gl.getProgramParameter(program, gl.LINK_STATUS)){
+      console.error(gl.getProgramInfoLog(program));
+      return false;
+    }
+    gl.useProgram(program);
+
+    quadBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(program, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+    uniforms.uTex = gl.getUniformLocation(program, 'uTex');
+    uniforms.uTexel = gl.getUniformLocation(program, 'uTexel');
+    uniforms.uCropOffset = gl.getUniformLocation(program, 'uCropOffset');
+    uniforms.uCropScale = gl.getUniformLocation(program, 'uCropScale');
+    uniforms.uBrightness = gl.getUniformLocation(program, 'uBrightness');
+    uniforms.uContrast = gl.getUniformLocation(program, 'uContrast');
+    uniforms.uSharpen = gl.getUniformLocation(program, 'uSharpen');
+    uniforms.uSplit = gl.getUniformLocation(program, 'uSplit');
+    uniforms.uForceEnhanced = gl.getUniformLocation(program, 'uForceEnhanced');
+    return true;
+  }
+  glReady = initGL();
+  if(!glReady){ showError('Tu navegador no soporta WebGL, necesario para mejorar el video. Prueba actualizando Chrome.'); }
+
+  let splitValue = 0.5;
+  let forceEnhanced = 0;
+
+  function computeCrop(){
+    const fmt = FORMATS[state.format];
+    let ratio = fmt.ratio;
+    const srcRatio = (video.videoWidth && video.videoHeight) ? video.videoWidth/video.videoHeight : 16/9;
+    if(ratio === null) ratio = srcRatio;
+    let scaleX=1, scaleY=1, offX=0, offY=0;
+    if(srcRatio > ratio){ scaleX = ratio/srcRatio; offX = (1-scaleX)/2; }
+    else { scaleY = srcRatio/ratio; offY = (1-scaleY)/2; }
+    return { offX, offY, scaleX, scaleY, ratio };
+  }
+
+  function computeCanvasSize(ratio){
+    const tier = TIERS[state.tier];
+    let w,h;
+    if(Math.abs(ratio-1) < 0.001){ w = tier.p; h = tier.p; }
+    else if(ratio > 1){ w = tier.long; h = Math.round(tier.long/ratio); }
+    else { h = tier.long; w = Math.round(tier.long*ratio); }
+    return { w, h };
+  }
+
+  function updateOutputSize(){
+    if(!video.videoWidth || !glReady) return;
+    const crop = computeCrop();
+    const { w, h } = computeCanvasSize(crop.ratio);
+    canvas.width = w; canvas.height = h;
+    gl.viewport(0, 0, w, h);
+    render();
+  }
+
+  function render(){
+    if(!glReady || !video.videoWidth) return;
+    if(video.readyState < 2) return;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    try{
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    }catch(e){ return; }
+
+    const crop = computeCrop();
+    gl.useProgram(program);
+    gl.uniform1i(uniforms.uTex, 0);
+    gl.uniform2f(uniforms.uTexel, 1/canvas.width, 1/canvas.height);
+    gl.uniform2f(uniforms.uCropOffset, crop.offX, crop.offY);
+    gl.uniform2f(uniforms.uCropScale, crop.scaleX, crop.scaleY);
+    gl.uniform1f(uniforms.uBrightness, ENHANCE.brightness);
+    gl.uniform1f(uniforms.uContrast, ENHANCE.contrast);
+    gl.uniform1f(uniforms.uSharpen, ENHANCE.sharpen);
+    gl.uniform1f(uniforms.uSplit, splitValue);
+    gl.uniform1f(uniforms.uForceEnhanced, forceEnhanced);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  let rafId = null;
+  function loop(){
+    if(video.paused || video.ended){ rafId = null; return; }
+    render();
+    seek.value = (video.currentTime / (video.duration||1)) * 1000;
+    timeLabel.textContent = fmtTime(video.currentTime) + ' / ' + fmtTime(video.duration);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function fmtTime(s){
+    if(!isFinite(s)) return '00:00';
+    return Math.floor(s/60).toString().padStart(2,'0') + ':' + Math.floor(s%60).toString().padStart(2,'0');
+  }
+
+  function showError(msg){ errorBox.textContent = msg; errorBox.style.display = 'block'; statusLabel.textContent = 'Error'; }
+  function clearError(){ errorBox.style.display = 'none'; }
+
+  // ---------- chips ----------
+  document.getElementById('formatSelect').addEventListener('click', e => {
+    const chip = e.target.closest('.chip'); if(!chip) return;
+    state.format = chip.dataset.format;
+    document.querySelectorAll('#formatSelect .chip').forEach(c => c.classList.toggle('active', c===chip));
+    updateOutputSize();
+  });
+  document.getElementById('tierSelect').addEventListener('click', e => {
+    const chip = e.target.closest('.chip'); if(!chip) return;
+    state.tier = chip.dataset.tier;
+    document.querySelectorAll('#tierSelect .chip').forEach(c => c.classList.toggle('active', c===chip));
+    updateOutputSize();
+  });
+  // ---------- split drag ----------
+  function setSplit(clientX){
+    const rect = dropzone.getBoundingClientRect();
+    let frac = (clientX - rect.left) / rect.width;
+    frac = Math.max(0, Math.min(1, frac));
+    splitValue = frac;
+    splitHandle.style.left = (frac*100) + '%';
+    if(video.paused) render();
+  }
+  let dragging = false;
+  splitHandle.addEventListener('pointerdown', e => { dragging = true; e.preventDefault(); });
+  window.addEventListener('pointermove', e => { if(dragging) setSplit(e.clientX); });
+  window.addEventListener('pointerup', () => { dragging = false; });
+  splitHandle.style.left = '50%';
+
+  // ---------- file loading ----------
+  function resetUIForNewFile(){
+    clearError();
+    dropzone.classList.remove('has-video');
+    emptyState.style.display = 'flex';
+    playBtn.disabled = true; seek.disabled = true; exportBtn.disabled = true;
+    statusLabel.textContent = 'Cargando…';
+    downloadArea.style.display = 'none';
+  }
+
+  let fileName = 'video';
+  function loadFile(file){
+    if(!file || !file.type.startsWith('video/')){
+      showError('Ese archivo no es un video. Elige un .mp4, .mov o .webm.');
+      return;
+    }
+    resetUIForNewFile();
+    fileName = file.name.replace(/\.[^/.]+$/, '');
+    const url = URL.createObjectURL(file);
+    video.src = url;
+    video.preload = "auto";
+    video.load();
+  }
+
+  video.addEventListener('loadedmetadata', () => {
+    clearError();
+    dropzone.classList.add('has-video');
+    emptyState.style.display = 'none';
+    updateOutputSize();
+    playBtn.disabled = false; seek.disabled = false;
+    exportBtn.disabled = !(window.MediaRecorder && canvas.captureStream);
+    statusLabel.textContent = 'Listo';
+    video.currentTime = 0.01;
+  });
+  video.addEventListener('seeked', () => { if(video.paused) render(); });
+  video.addEventListener('error', () => {
+    resetUIForNewFile();
+    showError('No se pudo cargar este video en tu navegador. Prueba con un MP4 (H.264): algunos .MOV de iPhone no funcionan en Android. Puedes convertirlo con una app gratuita como HandBrake.');
+  });
+
+  fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; });
+
+  // ---------- transport ----------
+  playBtn.addEventListener('click', e => {
+    e.preventDefault();
+    if(video.paused){
+      video.play(); playBtn.textContent = '❚❚'; statusLabel.textContent = 'Reproduciendo';
+      if(!rafId) rafId = requestAnimationFrame(loop);
+    } else {
+      video.pause(); playBtn.textContent = '▶'; statusLabel.textContent = 'Pausado';
+    }
+  });
+  video.addEventListener('ended', () => { playBtn.textContent = '▶'; statusLabel.textContent = 'Terminado'; });
+  seek.addEventListener('input', () => {
+    if(!video.duration) return;
+    video.currentTime = (seek.value/1000) * video.duration;
+    timeLabel.textContent = fmtTime(video.currentTime) + ' / ' + fmtTime(video.duration);
+  });
+
+  // ---------- export ----------
+  exportBtn.addEventListener('click', async e => {
+    e.preventDefault();
+    if(!video.duration) return;
+    exportBtn.disabled = true; playBtn.disabled = true; seek.disabled = true;
+    downloadArea.style.display = 'none';
+    statusLabel.textContent = 'Procesando… 0%';
+
+    forceEnhanced = 1; // always record the enhanced version, regardless of the preview split position
+
+    // Fuerza 60 fps explícitos en la exportación
+    const canvasStream = canvas.captureStream(60);
+    const mixedStream = new MediaStream();
+    canvasStream.getVideoTracks().forEach(t => mixedStream.addTrack(t));
+    try{
+      const vStream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+      vStream.getAudioTracks().forEach(t => mixedStream.addTrack(t));
+    }catch(err){ /* sin pista de audio disponible */ }
+
+    const mimeCandidates = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+    const mime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+    let recorder;
+    try{
+      recorder = new MediaRecorder(mixedStream, {
+        mimeType: mime,
+        videoBitsPerSecond: 25_000_000
+      });
+    }catch(err){
+      showError('No se pudo iniciar la grabación en este navegador.');
+      exportBtn.disabled = false; playBtn.disabled = false; seek.disabled = false;
+      forceEnhanced = 0;
+      return;
+    }
+    const chunks = [];
+    recorder.ondataavailable = ev => { if(ev.data.size) chunks.push(ev.data); };
+    const done = new Promise(resolve => { recorder.onstop = resolve; });
+
+    video.currentTime = 0;
+    await new Promise(r => { video.onseeked = r; });
+    recorder.start();
+    playBtn.textContent = '❚❚';
+    video.play();
+    if(!rafId) rafId = requestAnimationFrame(loop);
+
+    video.onended = () => { recorder.stop(); };
+    const progressInterval = setInterval(() => {
+      const pct = Math.round((video.currentTime/video.duration)*100);
+      statusLabel.textContent = 'Procesando… ' + pct + '%';
+    }, 200);
+
+    await done;
+    clearInterval(progressInterval);
+    splitValue = wasSplit;
+    exportBtn.disabled = false; playBtn.disabled = false; seek.disabled = false;
+    statusLabel.textContent = 'Listo para descargar';
+
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    downloadLink.href = url;
+    downloadLink.download = fileName + '-mejorado.webm';
+    downloadArea.style.display = 'block';
+  });
+
+  window.addEventListener('resize', () => { if(video.paused) render(); });
+})();
+</script>
+</body>
+</html>
